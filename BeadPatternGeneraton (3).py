@@ -321,7 +321,7 @@ init_saved_images_table()
 
 # ------------------------ STREAMLIT APP ------------------------
 # Link to the home page (adjust label and link as needed)
-st.page_link("main/pages/Home.py", label="🏠 HOME")
+st.page_link("Home.py", label="🏠 HOME")
 tab1, tab2 = st.tabs(["Bead Pattern Generation", "History"])
 
 # Directory to save patterns
