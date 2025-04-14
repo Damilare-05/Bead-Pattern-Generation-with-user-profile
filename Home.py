@@ -1,174 +1,192 @@
 import os
-import streamlit as st
-from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, inspect
-from sqlalchemy.exc import SQLAlchemyError
-
-
-
-# This will create the .db in a writable folder
 import tempfile
-db_path = os.path.join(tempfile.gettempdir(), "bead_app.db")
-CONNECTION_STRING = f"sqlite:///{db_path}"
+import hashlib
+import streamlit as st
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime
+from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
 
+# =============================================
+# DATABASE SETUP WITH PROPER PATH HANDLING
+# =============================================
 
-@st.cache_resource(ttl=3600)
-def get_engine():
-    return create_engine(CONNECTION_STRING)
+def get_database_path():
+    """Determine the appropriate database path based on environment"""
+    if 'DB_PATH' in st.secrets:  # For custom configuration
+        return st.secrets.DB_PATH
+    elif os.getenv("IS_STREAMLIT_CLOUD"):  # Streamlit Cloud environment
+        return os.path.join(tempfile.gettempdir(), "bead_app.db")
+    else:  # Local development
+        return "local_bead_app.db"
 
-engine = get_engine()
-inspector = inspect(engine)
-
-
-
-# ---------- Utility Function: Create Table if Not Exists ----------
-def create_table_if_not_exists(table_name, table_schema):
-    """
-    Uses SQLAlchemy metadata to create a table if it does not already exist.
-    
-    Parameters:
-        table_name (str): The name of the table to create.
-        table_schema (Table): The SQLAlchemy Table object defining the schema.
-    """
+def initialize_database(engine):
+    """Create all required tables with proper schema"""
     metadata = MetaData()
-    table_schema.metadata = metadata
+    
+    # Profile table with security features
+    Table(
+        'profile', metadata,
+        Column('id', Integer, primary_key=True, autoincrement=True),
+        Column('firstname', String(255), nullable=False),
+        Column('lastname', String(255), nullable=False),
+        Column('email', String(255), unique=True, nullable=False),
+        Column('password_hash', String(255), nullable=False),
+        Column('salt', String(255), nullable=False),
+        Column('created_at', DateTime, default=datetime.utcnow),
+        Column('last_login', DateTime),
+        extend_existing=True
+    )
+    
+    # Contact messages table
+    Table(
+        'contact', metadata,
+        Column('id', Integer, primary_key=True, autoincrement=True),
+        Column('firstname', String(255)),
+        Column('lastname', String(255)),
+        Column('email', String(255)),
+        Column('message', String(1000)),
+        Column('submitted_at', DateTime, default=datetime.utcnow),
+        extend_existing=True
+    )
+    
     metadata.create_all(engine)
 
-# ---------- Contact Form Dialog ----------
-@st.dialog("contact me")
-def show_contact_form():
-    """
-    Displays a contact form dialog for users to submit feedback.
-    This function validates user input and inserts the submitted data
-    into the 'contact' table in the SQLite database.
-    """
-    # Collect user inputs.
-    firstname = st.text_input("First name", key="contact_firstname")
-    lastname = st.text_input("Last name", key="contact_lastname")
-    email = st.text_input("Email", key="contact_email")
-    message = st.text_area("Message for possible improvements", key="contact_message")
-    submit_button = st.button("Submit", key="contact_submit")
+@st.cache_resource(ttl=3600)
+def get_database_engine():
+    """Get a configured database engine with connection pooling"""
+    db_path = get_database_path()
+    connection_string = f"sqlite:///{db_path}"
+    engine = create_engine(connection_string, pool_pre_ping=True)
+    
+    # Initialize tables if this is a new database
+    if not os.path.exists(db_path):
+        initialize_database(engine)
+    
+    return engine
 
-    if submit_button:
-        if firstname and lastname and email and message:
-            try:
-                with engine.begin() as connection:
-                    # Define the 'contact' table schema.
-                    contact_table = Table(
-                        'contact', MetaData(),
-                        Column('id', Integer, primary_key=True, autoincrement=True),
-                        Column('firstname', String(255)),
-                        Column('lastname', String(255)),
-                        Column('email', String(255)),
-                        Column('message', String(255))
-                    )
-                    # Create the table if it does not exist.
-                    create_table_if_not_exists('contact', contact_table)
-                    
-                    # Insert user data with a parameterized query.
-                    insert_query = contact_table.insert().values(
-                        firstname=firstname,
-                        lastname=lastname,
-                        email=email,
-                        message=message
-                    )
-                    connection.execute(insert_query)
-            except SQLAlchemyError as e:
-                st.error(f"An error occurred: {str(e)}")
-            else:
-                st.success("Thank you for your message! I will get back to you soon.")
-        else:
-            st.error("Please fill in all fields.")
+# Initialize the database engine
+engine = get_database_engine()
 
-# ---------- Sign Up Functionality ----------
+# =============================================
+# SECURITY FUNCTIONS
+# =============================================
+
+def generate_salt():
+    """Generate a random salt for password hashing"""
+    return os.urandom(16).hex()
+
+def hash_password(password, salt):
+    """Hash password with salt using PBKDF2-HMAC-SHA256"""
+    return hashlib.pbkdf2_hmac(
+        'sha256',
+        password.encode('utf-8'),
+        salt.encode('utf-8'),
+        100000  # Number of iterations
+    ).hex()
+
+# =============================================
+# APPLICATION FUNCTIONS
+# =============================================
+
 def sign_up():
-    """
-    Renders a sign-up form for new users, validates inputs, stores user
-    credentials securely in session state, and inserts the profile into
-    the database. Redirects to another page on successful sign up.
-    
-    Returns:
-        dict: A dictionary containing the user's email and password.
-    """
+    """User registration with proper validation and security"""
     st.subheader("Sign Up")
-    # Collect sign-up details.
-    firstname = st.text_input("First Name", key="signup_firstname")
-    lastname = st.text_input("Last Name", key="signup_lastname")
-    email = st.text_input("Email", key="signup_email")
-    create_password = st.text_input("Create Password", key="signup_create_password", type="password")
-    confirm_password = st.text_input("Password", key="signup_confirm_password", type="password")
-    submit_button = st.button("Submit", key="signup_submit")
     
-    if submit_button:
-        # Validate that all fields are completed.
-        if firstname and lastname and email and create_password and confirm_password:
-            if create_password == confirm_password:
-                try:
-                    with engine.begin() as connection:
-                        # Define the 'profile' table schema.
-                        profile_table = Table(
-                            'profile', MetaData(),
-                            Column('id', Integer, primary_key=True, autoincrement=True),
-                            Column('firstname', String(255)),
-                            Column('lastname', String(255)),
-                            Column('email', String(255)),
-                            Column('password', String(255))
-                        )
-                        # Create the table if it does not exist.
-                        create_table_if_not_exists('profile', profile_table)
-                        
-                        # Insert user profile data.
-                        insert_query = profile_table.insert().values(
-                            firstname=firstname,
-                            lastname=lastname,
-                            email=email,
-                            password=create_password  # Consider encrypting the password.
-                        )
-                        connection.execute(insert_query)
-                except SQLAlchemyError as e:
-                    st.error(f"An error occurred: {str(e)}")
+    with st.form("signup_form"):
+        firstname = st.text_input("First Name", max_chars=50)
+        lastname = st.text_input("Last Name", max_chars=50)
+        email = st.text_input("Email", max_chars=100).strip().lower()
+        password = st.text_input("Create Password", type="password")
+        confirm_password = st.text_input("Confirm Password", type="password")
+        submitted = st.form_submit_button("Create Account")
+        
+        if submitted:
+            # Validate inputs
+            if not all([firstname, lastname, email, password, confirm_password]):
+                st.error("Please fill in all fields")
+                return
+                
+            if password != confirm_password:
+                st.error("Passwords do not match")
+                return
+                
+            if len(password) < 8:
+                st.error("Password must be at least 8 characters")
+                return
+                
+            # Secure password handling
+            salt = generate_salt()
+            password_hash = hash_password(password, salt)
+            
+            try:
+                with engine.begin() as conn:
+                    conn.execute(
+                        """INSERT INTO profile 
+                        (firstname, lastname, email, password_hash, salt) 
+                        VALUES (?, ?, ?, ?, ?)""",
+                        (firstname, lastname, email, password_hash, salt)
+                    )
+                    
+                st.session_state.user_email = email
+                st.success("Account created successfully!")
+                st.balloons()
+                time.sleep(2)
+                st.switch_page("main_app.py")
+                
+            except SQLAlchemyError as e:
+                if "UNIQUE constraint failed" in str(e):
+                    st.error("This email is already registered")
                 else:
-                    # Save user credentials into session state.
-                    st.session_state["EMAIL"] = email
-                    st.session_state["PASSWORD"] = create_password
-                    st.success("Account Created")
-                    # Switch page after successful sign-up.
-                    st.switch_page("BeadPatternGeneraton (3).py")
-            else:
-                st.error("Passwords do not match.")
-        else:
-            st.error("Please fill in all fields.")
-    
-    # Return user data from session state if available.
-    return {
-        "email": st.session_state.get("EMAIL"),
-        "password": st.session_state.get("PASSWORD")
-    }
+                    st.error(f"Registration failed: {str(e)}")
 
-# ---------- Main Layout Setup ----------
+@st.dialog("Contact Us")
+def show_contact_form():
+    """Contact form with proper validation"""
+    with st.form("contact_form"):
+        firstname = st.text_input("First name", max_chars=50)
+        lastname = st.text_input("Last name", max_chars=50)
+        email = st.text_input("Email", max_chars=100)
+        message = st.text_area("Your message", max_chars=1000)
+        submitted = st.form_submit_button("Send Message")
+        
+        if submitted:
+            if not all([firstname, lastname, email, message]):
+                st.error("Please fill in all fields")
+                return
+                
+            try:
+                with engine.begin() as conn:
+                    conn.execute(
+                        """INSERT INTO contact 
+                        (firstname, lastname, email, message) 
+                        VALUES (?, ?, ?, ?)""",
+                        (firstname, lastname, email, message)
+                    )
+                st.success("Thank you for your message!")
+                time.sleep(2)
+                st.rerun()
+            except SQLAlchemyError as e:
+                st.error(f"Failed to send message: {str(e)}")
+
+# =============================================
+# MAIN APPLICATION LAYOUT
+# =============================================
+
 def main():
-    """
-    Sets up the main layout of the web application, including columns for
-    images and forms. Integrates the sign-up functionality and displays the
-    contact dialog trigger.
-    """
-    # Define layout columns.
-    col1, col2 = st.columns(2, gap="small", vertical_alignment="center")
+    """Main application layout"""
+    st.set_page_config(page_title="Bead Pattern Generator", layout="wide")
+    
+    col1, col2 = st.columns([1, 2])
     
     with col1:
-        st.image(
-            "ChatGPT Image Apr 11, 2025, 03_18_52 AM.png",
-            width=200
-        )
+        st.image("app_logo.png", width=200)
     
     with col2:
-        st.title("Welcome to Beader!")
-        sign_up_data = sign_up()
-        
+        st.title("Welcome to Bead Pattern Generator")
+        sign_up()
     
-    # Trigger the contact form dialog via a button.
-    if st.button("Contact Us"):
+    if st.button("Contact Support"):
         show_contact_form()
 
-# ---------- Execute the Application ----------
 if __name__ == "__main__":
     main()
