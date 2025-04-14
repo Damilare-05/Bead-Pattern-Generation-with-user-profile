@@ -6,7 +6,7 @@ import streamlit as st  # Import the Streamlit library, which is used for buildi
 
 # Define the "home" page with its respective settings.
 about_page = st.Page(
-    page="main/pages/Home.py",
+    page="Home.py",
     title="home",
     icon="👤",
     default=True,  # This page is set as the default page when the application is launched.
@@ -14,7 +14,7 @@ about_page = st.Page(
 
 # Define the first project page for bead pattern generation.
 project_page = st.Page(
-    page="main/pages/BeadPatternGeneraton.py",
+    page="BeadPatternGeneraton (3).py",
     title="bead pattern generation",
     icon="📿",
     default=False,  # This page is not the default landing page.
@@ -25,7 +25,7 @@ project_page = st.Page(
 # ----------Logo (Shared on all pages)----------
 # Set a shared logo across all pages using an image located at the given path.
 st.logo(
-    "main/logo/ChatGPT Image Apr 11, 2025, 03_18_52 AM.png",
+    "ChatGPT Image Apr 11, 2025, 03_18_52 AM.png",
     size="large",  # The logo is rendered with a large size specification.
 )
 
