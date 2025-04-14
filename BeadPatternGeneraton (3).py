@@ -362,15 +362,25 @@ with tab1:
 
         # Pattern Settings in the sidebar
         st.sidebar.subheader("Pattern Settings")
-        pattern_type = st.sidebar.selectbox("Pattern Type", ["2D Pattern", "1D String Pattern"])
-        symmetry_type = st.sidebar.selectbox("Symmetry Type", ["Vertical", "Horizontal", "Radial", "Random"])
-        pattern_style = st.sidebar.selectbox("1D Pattern Style", ["symmetric", "alternating", "gradient", "zigzag", "burst"])
+        pattern_type = st.sidebar.radio("Choose a layout style:", ["1D String / Bracelet Layout", "2D Woven Surface / Grid Layout"])
+        st.sidebar.markdown("""
+        - **1D String / Bracelet Layout**: Suitable for necklaces, bracelets, and linear beadwork.
+        - **2D Woven Surface / Grid Layout**: Ideal for wall hangings, mats, and surface designs. """)
+        if pattern_type == "2D Woven Surface / Grid Layout":
+            symmetry_type = st.sidebar.selectbox("2D Symmetry Type", ["Vertical", "Horizontal", "Radial", "Random"])
+        else:
+            symmetry_type = None
+        if pattern_type == "1D String / Bracelet Layout":
+            pattern_style = st.sidebar.selectbox("1D Pattern Style", ["symmetric", "alternating", "gradient", "zigzag", "burst"])
+        else:
+            pattern_style = None
+
         rows = st.sidebar.slider("Rows (for 2D)", 4, 20, 8)
         cols = st.sidebar.slider("Columns (for 2D / Length for 1D)", 4, 20, 8)
         bead_cost = st.sidebar.slider('Bead Cost ($)', 0.001, 1.0, BEAD_COST_DEFAULT)
 
         # Generate the pattern based on user selections
-        if pattern_type == "2D Pattern":
+        if pattern_type == "2D Woven Surface / Grid Layout":
             if symmetry_type == "Vertical":
                 grid = generate_vertical_symmetric_grid(palette, rows, cols)
             elif symmetry_type == "Horizontal":
@@ -385,6 +395,8 @@ with tab1:
             pattern = generate_linear_pattern(palette, pattern_length=cols, mode=pattern_style)
             fig = plot_linear_pattern(pattern, title=f"1D {pattern_style.capitalize()} Pattern")
 
+        
+        
         # Show the generated pattern and its estimated cost
         st.subheader("Generated Bead Pattern")
         st.pyplot(fig)
