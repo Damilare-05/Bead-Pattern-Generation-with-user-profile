@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, inspect
 from sqlalchemy.exc import SQLAlchemyError
