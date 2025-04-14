@@ -131,7 +131,7 @@ def sign_up():
                     st.session_state["PASSWORD"] = create_password
                     st.success("Account Created")
                     # Switch page after successful sign-up.
-                    st.switch_page(r"main\pages\BeadPatternGeneraton.py")
+                    st.switch_page("BeadPatternGeneraton (3).py")
             else:
                 st.error("Passwords do not match.")
         else:
@@ -155,7 +155,7 @@ def main():
     
     with col1:
         st.image(
-            r"main\logo\ChatGPT Image Apr 12, 2025, 12_25_09 AM.png",
+            "ChatGPT Image Apr 11, 2025, 03_18_52 AM.png",
             width=200
         )
     
