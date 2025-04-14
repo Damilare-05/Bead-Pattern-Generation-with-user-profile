@@ -2,9 +2,12 @@ import streamlit as st
 from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, inspect
 from sqlalchemy.exc import SQLAlchemyError
 
-# Define database name and connection string.
-DB_NAME = "bead_project.db"
-CONNECTION_STRING = f"sqlite:///{DB_NAME}"
+
+# ---------- Database Engine Setup with Caching ----------
+# ---------- Set Writable Database Path ----------
+# This will place the DB in the current working directory (which is writable)
+db_path = os.path.join(os.getcwd(), "bead_app.db")
+CONNECTION_STRING = f"sqlite:///{db_path}"
 
 # ---------- Database Engine Setup with Caching ----------
 @st.cache_resource(ttl=3600)
@@ -16,8 +19,11 @@ def get_engine():
     return create_engine(CONNECTION_STRING)
 
 engine = get_engine()
-# Create an inspector instance to inspect the database schema.
+
+# ---------- Inspector ----------
 inspector = inspect(engine)
+
+
 
 # ---------- Utility Function: Create Table if Not Exists ----------
 def create_table_if_not_exists(table_name, table_schema):
