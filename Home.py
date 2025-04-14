@@ -2,12 +2,16 @@ import os
 import streamlit as st
 from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, inspect
 from sqlalchemy.exc import SQLAlchemyError
+import tempfile
 
+
+# Create a writable temporary directory
+temp_dir = tempfile.gettempdir()
 
 # ---------- Database Engine Setup with Caching ----------
 # ---------- Set Writable Database Path ----------
 # This will place the DB in the current working directory (which is writable)
-db_path = os.path.join(os.getcwd(), "bead_app.db")
+db_path = os.path.join(temp_dir, "bead_project.db")
 CONNECTION_STRING = f"sqlite:///{db_path}"
 
 # ---------- Database Engine Setup with Caching ----------
